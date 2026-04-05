@@ -1,0 +1,16 @@
+# Archive Folder Structure
+
+This folder contains your document archive organized by categories:
+
+- academic/     - Degrees, transcripts, diplomas
+- identity/     - Passports, IDs, licenses
+- finance/      - Tax returns, statements, investments
+- family/       - Family photos, documents
+- property/     - Deeds, registrations
+- medical/      - Health records, insurance
+- certificates/ - Professional certifications
+- receipts/     - Purchase receipts, bills
+- personal/     - Personal documents, journals
+
+Place your files in the appropriate category folders and update
+the data/archive-manifest.json file to register them in the app.
