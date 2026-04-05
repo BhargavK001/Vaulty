@@ -38,11 +38,26 @@ export function useArchive() {
       .find(row => row.startsWith('selected_folder_name='))
       ?.split('=')[1]
 
+    const recentFoldersCookie = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('recent_folders='))
+      ?.split('=')[1]
+    
+    let recentFolders = []
+    if (recentFoldersCookie) {
+      try {
+        recentFolders = JSON.parse(decodeURIComponent(recentFoldersCookie))
+      } catch (e) {
+        console.error('Error parsing recent folders cookie:', e)
+      }
+    }
+
     return {
       connected: !!email,
       email: email ? decodeURIComponent(email) : undefined,
       folderId: folderId ? decodeURIComponent(folderId) : undefined,
-      folderName: folderName ? decodeURIComponent(folderName) : undefined
+      folderName: folderName ? decodeURIComponent(folderName) : undefined,
+      recentFolders
     }
   }, [])
 

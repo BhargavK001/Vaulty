@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
@@ -14,7 +14,11 @@ import {
   FileText,
   Image as ImageIcon,
   FolderOpen,
-  HardDrive
+  HardDrive,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
+  RefreshCw
 } from 'lucide-react'
 import { ArchiveFile } from '@/types/archive'
 import { Button } from '@/components/ui/button'
@@ -54,6 +58,15 @@ function formatFileSize(bytes?: number): string {
 }
 
 export function FilePreviewModal({ file, onClose, onFavoriteToggle }: FilePreviewModalProps) {
+  const [rotation, setRotation] = useState(0)
+  const [scale, setScale] = useState(1)
+
+  useEffect(() => {
+    // Reset transforms when file changes
+    setRotation(0)
+    setScale(1)
+  }, [file])
+
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -91,6 +104,14 @@ export function FilePreviewModal({ file, onClose, onFavoriteToggle }: FilePrevie
       window.open(file.webViewLink, '_blank')
     }
   }
+
+  const handleRotate = () => setRotation((prev) => (prev + 90) % 360)
+  const handleZoomIn = () => setScale((prev) => Math.min(prev + 0.25, 3))
+  const handleZoomOut = () => setScale((prev) => Math.max(prev - 0.25, 0.5))
+  const handleReset = () => {
+    setRotation(0)
+    setScale(1)
+  }
   
   const isImage = file?.type === 'image'
   const colors = file ? (categoryColors[file.category] || categoryColors.personal) : categoryColors.personal
@@ -127,54 +148,71 @@ export function FilePreviewModal({ file, onClose, onFavoriteToggle }: FilePrevie
                 )} />
               </div>
               
-              {/* Thumbnail or placeholder */}
-              {hasThumbnail ? (
-                <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.1 }}
-                  className="relative z-10 w-full max-w-2xl max-h-full aspect-auto rounded-2xl overflow-hidden shadow-2xl"
-                >
-                  <Image
-                    src={file.thumbnail!}
-                    alt={file.title}
-                    width={800}
-                    height={600}
-                    className="w-full h-auto object-contain"
-                  />
-                </motion.div>
-              ) : isImage ? (
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.1 }}
-                  className="relative z-10 w-full max-w-2xl aspect-[4/3] rounded-3xl glass shadow-xl overflow-hidden flex items-center justify-center"
-                >
-                  <ImageIcon className="w-24 h-24 text-emerald-500/40" />
-                </motion.div>
-              ) : (
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.1 }}
-                  className="relative z-10 w-full max-w-sm aspect-[3/4] rounded-3xl glass shadow-xl overflow-hidden flex flex-col"
-                >
-                  <div className="flex-1 flex items-center justify-center">
-                    <FileText className="w-24 h-24 text-blue-500/40" />
+              {/* Preview Container with Transforms */}
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.1 }}
+                className="relative z-10 w-full flex items-center justify-center max-h-full"
+                style={{ 
+                  transform: `rotate(${rotation}deg) scale(${scale})`,
+                  transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' 
+                }}
+              >
+                {hasThumbnail ? (
+                  <div className="relative w-full max-w-2xl aspect-auto rounded-2xl overflow-hidden shadow-2xl">
+                    <Image
+                      src={file.thumbnail!}
+                      alt={file.title}
+                      width={800}
+                      height={600}
+                      className="w-full h-auto object-contain"
+                    />
                   </div>
-                  <div className="p-6 bg-background/50 border-t border-border/50">
-                    <p className="font-medium text-foreground truncate">{file.fileName}</p>
-                    <p className="text-sm text-muted-foreground">PDF Document</p>
+                ) : isImage ? (
+                  <div className="relative w-full max-w-2xl aspect-[4/3] rounded-3xl glass shadow-xl overflow-hidden flex items-center justify-center">
+                    <ImageIcon className="w-24 h-24 text-emerald-500/40" />
                   </div>
-                </motion.div>
-              )}
+                ) : (
+                  <div className="relative w-full max-w-sm aspect-[3/4] rounded-3xl glass shadow-xl overflow-hidden flex flex-col">
+                    <div className="flex-1 flex items-center justify-center">
+                      <FileText className="w-24 h-24 text-blue-500/40" />
+                    </div>
+                    <div className="p-6 bg-background/50 border-t border-border/50">
+                      <p className="font-medium text-foreground truncate">{file.fileName}</p>
+                      <p className="text-sm text-muted-foreground">PDF Document</p>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+              
+              {/* Preview Controls */}
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 p-2 rounded-2xl glass shadow-2xl z-20 border border-border/50">
+                <Button variant="ghost" size="icon" onClick={handleZoomOut} className="rounded-xl h-9 w-9">
+                  <ZoomOut className="w-4 h-4" />
+                </Button>
+                <div className="text-[10px] font-mono w-10 text-center text-muted-foreground">
+                  {Math.round(scale * 100)}%
+                </div>
+                <Button variant="ghost" size="icon" onClick={handleZoomIn} className="rounded-xl h-9 w-9">
+                  <ZoomIn className="w-4 h-4" />
+                </Button>
+                <Separator orientation="vertical" className="h-4 bg-border/50 mx-1" />
+                <Button variant="ghost" size="icon" onClick={handleRotate} className="rounded-xl h-9 w-9">
+                  <RotateCw className="w-4 h-4" />
+                </Button>
+                <Separator orientation="vertical" className="h-4 bg-border/50 mx-1" />
+                <Button variant="ghost" size="icon" onClick={handleReset} className="rounded-xl h-9 w-9">
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
+              </div>
               
               {/* Close Button */}
               <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={onClose}
-                className="absolute top-4 right-4 w-11 h-11 rounded-xl glass flex items-center justify-center hover:bg-accent transition-colors shadow-lg"
+                className="absolute top-4 right-4 w-11 h-11 rounded-xl glass flex items-center justify-center hover:bg-accent transition-colors shadow-lg z-20"
               >
                 <X className="w-5 h-5" />
               </motion.button>

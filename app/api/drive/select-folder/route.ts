@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
 
     const cookieStore = await cookies()
     
+    // Existing cookies
     cookieStore.set('selected_folder_id', folderId, {
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
@@ -22,6 +23,28 @@ export async function POST(request: NextRequest) {
     })
     
     cookieStore.set('selected_folder_name', folderName, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 365
+    })
+
+    // Update recent folders
+    const recentFoldersCookie = cookieStore.get('recent_folders')?.value
+    let recentFolders = []
+    try {
+      recentFolders = recentFoldersCookie ? JSON.parse(recentFoldersCookie) : []
+    } catch (e) {
+      recentFolders = []
+    }
+
+    // Add new folder to the front, remove if already exists
+    recentFolders = [
+      { id: folderId, name: folderName },
+      ...recentFolders.filter((f: any) => f.id !== folderId)
+    ].slice(0, 5)
+
+    cookieStore.set('recent_folders', JSON.stringify(recentFolders), {
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

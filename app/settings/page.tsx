@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+export const dynamic = 'force-dynamic'
+
+import { useEffect, useState, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from 'next-themes'
 import { useSearchParams } from 'next/navigation'
@@ -18,7 +20,9 @@ import {
   RefreshCw,
   ChevronRight,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  History,
+  FolderCheck
 } from 'lucide-react'
 import { Topbar } from '@/components/layout/topbar'
 import { AnimatedPage } from '@/components/layout/animated-page'
@@ -35,7 +39,7 @@ interface DriveFolder {
   modifiedTime: string
 }
 
-export default function SettingsPage() {
+function SettingsContent() {
   const { theme, setTheme } = useTheme()
   const searchParams = useSearchParams()
   const { connectionStatus, getStats, getCategories, refresh } = useArchive()
@@ -128,7 +132,7 @@ export default function SettingsPage() {
     }
   }
   
-  const handleSelectFolder = async (folder: DriveFolder) => {
+  const handleSelectFolder = async (folder: { id: string; name: string }) => {
     setSelectingFolder(folder.id)
     try {
       const res = await fetch('/api/drive/select-folder', {
@@ -167,7 +171,7 @@ export default function SettingsPage() {
           className="mb-8"
         >
           <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center border border-primary/10 shadow-lg shadow-primary/5">
               <Settings className="w-7 h-7 text-primary" />
             </div>
             <div>
@@ -237,28 +241,76 @@ export default function SettingsPage() {
                       </Button>
                     </div>
                     
-                    {/* Selected folder */}
+                    {/* Selected folder & Recent Folders */}
                     {connectionStatus.folderId && (
-                      <div className="p-4 bg-muted/30 rounded-2xl">
-                        <div className="flex items-center gap-3">
-                          <FolderOpen className="w-5 h-5 text-primary" />
-                          <div>
-                            <p className="font-medium text-foreground">{connectionStatus.folderName}</p>
-                            <p className="text-sm text-muted-foreground">Selected archive folder</p>
+                      <div className="space-y-6">
+                        <div className="p-4 bg-muted/30 rounded-2xl">
+                          <div className="flex items-center gap-3">
+                            <FolderOpen className="w-5 h-5 text-primary" />
+                            <div>
+                              <p className="font-medium text-foreground">{connectionStatus.folderName}</p>
+                              <p className="text-sm text-muted-foreground">Selected archive folder</p>
+                            </div>
                           </div>
+                          <Button 
+                            variant="ghost" 
+                            className="mt-3 text-sm rounded-xl"
+                            onClick={loadFolders}
+                          >
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            Change folder
+                          </Button>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          className="mt-3 text-sm rounded-xl"
-                          onClick={loadFolders}
-                        >
-                          <RefreshCw className="w-4 h-4 mr-2" />
-                          Change folder
-                        </Button>
+
+                        {/* Recent Folders */}
+                        {connectionStatus.recentFolders && connectionStatus.recentFolders.length > 0 && (
+                          <div className="space-y-4">
+                            <div className="flex items-center gap-2 text-sm font-semibold">
+                              <History className="w-4 h-4 text-muted-foreground" />
+                              <h3>Recent Folders</h3>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {connectionStatus.recentFolders.map((folder) => (
+                                <button
+                                  key={folder.id}
+                                  onClick={() => handleSelectFolder(folder)}
+                                  disabled={connectionStatus.folderId === folder.id || selectingFolder !== null}
+                                  className={cn(
+                                    "group flex items-center gap-3 p-4 rounded-2xl border text-left transition-all",
+                                    connectionStatus.folderId === folder.id
+                                      ? "bg-primary/5 border-primary/20 ring-1 ring-primary/20 cursor-default"
+                                      : "bg-card hover:bg-accent border-border/50 shadow-sm hover:shadow-md"
+                                  )}
+                                >
+                                  <div className={cn(
+                                    "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
+                                    connectionStatus.folderId === folder.id 
+                                      ? "bg-primary/10" 
+                                      : "bg-muted group-hover:bg-primary/5"
+                                  )}>
+                                    <FolderCheck className={cn(
+                                      "w-5 h-5",
+                                      connectionStatus.folderId === folder.id ? "text-primary" : "text-muted-foreground group-hover:text-primary"
+                                    )} />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{folder.name}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {connectionStatus.folderId === folder.id ? 'Currently active' : 'Click to switch'}
+                                    </p>
+                                  </div>
+                                  {selectingFolder === folder.id && (
+                                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                     
-                    {/* Folder selection */}
+                    {/* Folder selection list */}
                     {!connectionStatus.folderId && (
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
@@ -283,27 +335,27 @@ export default function SettingsPage() {
                             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                           </div>
                         ) : folders.length > 0 ? (
-                          <div className="space-y-2 max-h-64 overflow-y-auto">
+                          <div className="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
                             {folders.map((folder) => (
                               <motion.button
                                 key={folder.id}
                                 onClick={() => handleSelectFolder(folder)}
                                 disabled={selectingFolder !== null}
                                 className={cn(
-                                  "w-full flex items-center justify-between p-4 rounded-xl border border-border/50 bg-card hover:bg-accent/50 hover:border-primary/30 transition-all text-left",
+                                  "w-full flex items-center justify-between p-4 rounded-xl border border-border/50 bg-card hover:bg-accent/50 hover:border-primary/30 transition-all text-left group",
                                   selectingFolder === folder.id && "border-primary bg-primary/5"
                                 )}
                                 whileHover={{ scale: 1.01 }}
                                 whileTap={{ scale: 0.99 }}
                               >
                                 <div className="flex items-center gap-3">
-                                  <FolderOpen className="w-5 h-5 text-muted-foreground" />
+                                  <FolderOpen className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
                                   <span className="font-medium text-foreground">{folder.name}</span>
                                 </div>
                                 {selectingFolder === folder.id ? (
                                   <Loader2 className="w-4 h-4 animate-spin text-primary" />
                                 ) : (
-                                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-transform group-hover:translate-x-0.5" />
                                 )}
                               </motion.button>
                             ))}
@@ -375,7 +427,7 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle className="text-lg">Appearance</CardTitle>
                 <CardDescription>
-                  Choose how Bhargav Archive looks to you
+                  Choose how Vaulty looks to you
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -456,7 +508,7 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <p className="font-semibold text-foreground text-lg">Bhargav Archive</p>
+                  <p className="font-semibold text-foreground text-lg">Vaulty</p>
                   <p className="text-sm text-muted-foreground">
                     A calm place for every important document
                   </p>
@@ -472,5 +524,17 @@ export default function SettingsPage() {
         </div>
       </div>
     </AnimatedPage>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <SettingsContent />
+    </Suspense>
   )
 }

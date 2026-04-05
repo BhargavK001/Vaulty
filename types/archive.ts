@@ -77,4 +77,5 @@ export interface DriveConnectionStatus {
   folderId?: string
   folderName?: string
   lastSync?: string
+  recentFolders?: { id: string; name: string }[]
 }

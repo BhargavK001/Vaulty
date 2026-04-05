@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+export const dynamic = 'force-dynamic'
+
+import { useState, useMemo, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Search, Cloud, FolderOpen, Loader2 } from 'lucide-react'
+import { Search, Cloud, FolderOpen } from 'lucide-react'
 import { Topbar } from '@/components/layout/topbar'
 import { AnimatedPage, staggerContainer, staggerItem } from '@/components/layout/animated-page'
 import { FilterBar } from '@/components/archive/filter-bar'
@@ -14,8 +16,10 @@ import { FilePreviewModal } from '@/components/archive/file-preview-modal'
 import { Button } from '@/components/ui/button'
 import { ArchiveFile, Category } from '@/types/archive'
 import { useArchive } from '@/hooks/use-archive'
+import { FileSkeleton, FileSkeletonList } from '@/components/archive/file-skeleton'
+import { cn } from '@/lib/utils'
 
-export default function ArchivePage() {
+function ArchiveContent() {
   const searchParams = useSearchParams()
   const categoryParam = searchParams.get('category') as Category | null
   
@@ -42,6 +46,7 @@ export default function ArchivePage() {
   
   const years = getYears()
   const isConnected = connectionStatus.connected && connectionStatus.folderId
+  const skeletons = Array(8).fill(0)
   
   useEffect(() => {
     if (categoryParam) {
@@ -113,21 +118,6 @@ export default function ArchivePage() {
     )
   }
   
-  // Loading state
-  if (isLoading) {
-    return (
-      <AnimatedPage>
-        <Topbar title="Archive" />
-        <div className="px-4 lg:px-8 py-12">
-          <div className="flex flex-col items-center justify-center py-20">
-            <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
-            <p className="text-muted-foreground">Loading your documents...</p>
-          </div>
-        </div>
-      </AnimatedPage>
-    )
-  }
-  
   return (
     <AnimatedPage>
       <Topbar 
@@ -156,7 +146,17 @@ export default function ArchivePage() {
         />
         
         <div className="mt-6">
-          {filteredFiles.length === 0 ? (
+          {isLoading ? (
+            <div className={cn(
+              viewMode === 'grid' 
+                ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" 
+                : "space-y-3"
+            )}>
+              {skeletons.map((_, i) => (
+                viewMode === 'grid' ? <FileSkeleton key={i} /> : <FileSkeletonList key={i} />
+              ))}
+            </div>
+          ) : filteredFiles.length === 0 ? (
             <EmptyState
               icon={allFiles.length === 0 ? FolderOpen : Search}
               title={allFiles.length === 0 ? "No documents yet" : "No documents found"}
@@ -225,5 +225,17 @@ export default function ArchivePage() {
         onFavoriteToggle={() => selectedFile && toggleFavorite(selectedFile.id)}
       />
     </AnimatedPage>
+  )
+}
+
+export default function ArchivePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <ArchiveContent />
+    </Suspense>
   )
 }
