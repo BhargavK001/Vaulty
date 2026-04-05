@@ -175,6 +175,21 @@ export function Sidebar() {
             />
           </div>
         </div>
+
+        {/* Developer attribution */}
+        <div className="mt-6 text-center">
+          <p className="text-[10px] text-muted-foreground/60">
+            Developed by{' '}
+            <a 
+              href="https://bhargavkarande.dev" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:text-primary transition-colors font-medium"
+            >
+              Bhargav Karande
+            </a>
+          </p>
+        </div>
       </div>
     </aside>
   )
