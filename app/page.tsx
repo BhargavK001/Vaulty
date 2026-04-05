@@ -36,9 +36,22 @@ export default function HomePage() {
   } = useArchive()
   
   const stats = getStats()
-  const recentFiles = getRecentFiles(6)
-  const categories = getCategories().filter(c => c.count > 0)
-  const timeline = groupByTimeline(getRecentFiles(20))
+  
+  // Filter categories based on search
+  const categories = getCategories()
+    .filter(c => c.count > 0)
+    .filter(c => !searchQuery || c.label.toLowerCase().includes(searchQuery.toLowerCase()))
+    
+  // Filter recent files based on search
+  const allRecentFiles = getRecentFiles(20)
+  const filteredRecentFiles = searchQuery 
+    ? allRecentFiles.filter(f => 
+        f.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        f.fileName.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : allRecentFiles.slice(0, 6)
+    
+  const timeline = groupByTimeline(searchQuery ? filteredRecentFiles : allRecentFiles.slice(0, 20))
   const isConnected = connectionStatus.connected && connectionStatus.folderId
   
   return (
@@ -220,7 +233,7 @@ export default function HomePage() {
             </section>
             
             {/* Recent Documents */}
-            {recentFiles.length > 0 && (
+            {filteredRecentFiles.length > 0 && (
               <section className="mb-12">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-lg font-semibold text-foreground">Recent Documents</h2>
@@ -238,7 +251,7 @@ export default function HomePage() {
                   initial="initial"
                   animate="animate"
                 >
-                  {recentFiles.slice(0, 6).map((file, index) => (
+                  {filteredRecentFiles.slice(0, 6).map((file, index) => (
                     <motion.div key={file.id} variants={staggerItem}>
                       <FileCard 
                         file={file} 
@@ -298,7 +311,9 @@ export default function HomePage() {
                       transition={{ delay: yearIndex * 0.1, duration: 0.4 }}
                     >
                       <div className="flex items-center gap-4 mb-4">
-                        <span className="text-3xl font-bold text-gradient">{yearGroup.year}</span>
+                        <span className="text-3xl font-bold bg-linear-to-r from-primary/80 to-primary bg-clip-text text-transparent">
+                          {yearGroup.year}
+                        </span>
                         <div className="flex-1 h-px bg-gradient-to-r from-border to-transparent" />
                       </div>
                       

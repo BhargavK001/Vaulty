@@ -33,6 +33,15 @@ export interface ArchiveFile {
   driveId?: string
 }
 
+export interface ArchiveFolder {
+  id: string
+  name: string
+  path: string
+  parentId?: string
+  modifiedTime: string
+  itemCount: number
+}
+
 export interface GoogleDriveFile {
   id: string
   name: string

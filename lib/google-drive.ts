@@ -1,5 +1,5 @@
 import { google } from 'googleapis'
-import { ArchiveFile, GoogleDriveFile, Category, FileType, FileExtension } from '@/types/archive'
+import { ArchiveFile, ArchiveFolder, GoogleDriveFile, Category, FileType, FileExtension } from '@/types/archive'
 
 const SCOPES = [
   'https://www.googleapis.com/auth/drive.readonly',
@@ -99,11 +99,12 @@ export async function listAllFilesRecursively(
   accessToken: string, 
   folderId: string, 
   folderPath: string = ''
-): Promise<GoogleDriveFile[]> {
+): Promise<{ files: GoogleDriveFile[], folders: ArchiveFolder[] }> {
   const oauth2Client = getOAuth2Client(accessToken)
   const drive = google.drive({ version: 'v3', auth: oauth2Client })
 
   let allFiles: GoogleDriveFile[] = []
+  let allFolders: ArchiveFolder[] = []
 
   // Get files in current folder
   const files = await listFilesInFolder(accessToken, folderId)
@@ -112,7 +113,7 @@ export async function listAllFilesRecursively(
   // Get subfolders
   const foldersResponse = await drive.files.list({
     q: `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-    fields: 'files(id, name)'
+    fields: 'files(id, name, modifiedTime)'
   })
 
   const subfolders = foldersResponse.data.files || []
@@ -120,12 +121,24 @@ export async function listAllFilesRecursively(
   for (const subfolder of subfolders) {
     if (subfolder.id && subfolder.name) {
       const newPath = folderPath ? `${folderPath}/${subfolder.name}` : subfolder.name
-      const subFiles = await listAllFilesRecursively(accessToken, subfolder.id, newPath)
-      allFiles = allFiles.concat(subFiles)
+      
+      // Add this folder to our list
+      allFolders.push({
+        id: subfolder.id,
+        name: subfolder.name,
+        path: folderPath || '/',
+        parentId: folderId,
+        modifiedTime: subfolder.modifiedTime || new Date().toISOString(),
+        itemCount: 0
+      })
+
+      const result = await listAllFilesRecursively(accessToken, subfolder.id, newPath)
+      allFiles = allFiles.concat(result.files)
+      allFolders = allFolders.concat(result.folders)
     }
   }
 
-  return allFiles
+  return { files: allFiles, folders: allFolders }
 }
 
 export function inferCategoryFromPath(path: string, fileName: string): Category {

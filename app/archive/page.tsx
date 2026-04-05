@@ -5,16 +5,17 @@ export const dynamic = 'force-dynamic'
 import { useState, useMemo, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { motion } from 'framer-motion'
-import { Search, Cloud, FolderOpen } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Search, Cloud, FolderOpen, ChevronRight, Home } from 'lucide-react'
 import { Topbar } from '@/components/layout/topbar'
 import { AnimatedPage, staggerContainer, staggerItem } from '@/components/layout/animated-page'
 import { FilterBar } from '@/components/archive/filter-bar'
 import { FileCard } from '@/components/archive/file-card'
+import { FolderCard, FolderCardList } from '@/components/archive/folder-card'
 import { EmptyState } from '@/components/archive/empty-state'
 import { FilePreviewModal } from '@/components/archive/file-preview-modal'
 import { Button } from '@/components/ui/button'
-import { ArchiveFile, Category } from '@/types/archive'
+import { ArchiveFile, ArchiveFolder, Category } from '@/types/archive'
 import { useArchive } from '@/hooks/use-archive'
 import { FileSkeleton, FileSkeletonList } from '@/components/archive/file-skeleton'
 import { cn } from '@/lib/utils'
@@ -25,6 +26,7 @@ function ArchiveContent() {
   
   const { 
     files: allFiles, 
+    folders: allFolders,
     isLoading, 
     connectionStatus,
     searchFiles,
@@ -44,6 +46,12 @@ function ArchiveContent() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [selectedFile, setSelectedFile] = useState<ArchiveFile | null>(null)
   
+  // Navigation state
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
+  const [breadcrumbs, setBreadcrumbs] = useState<{ id: string | null; name: string }[]>([
+    { id: null, name: 'Root' }
+  ])
+  
   const years = getYears()
   const isConnected = connectionStatus.connected && connectionStatus.folderId
   const skeletons = Array(8).fill(0)
@@ -53,28 +61,54 @@ function ArchiveContent() {
       setSelectedCategory(categoryParam)
     }
   }, [categoryParam])
+
+  // Reset navigation when archive root changes
+  useEffect(() => {
+    setCurrentFolderId(null)
+    setBreadcrumbs([{ id: null, name: connectionStatus.folderName || 'Vaulty' }])
+  }, [connectionStatus.folderId, connectionStatus.folderName])
   
   const filteredFiles = useMemo(() => {
     let files = allFiles
     
-    if (searchQuery) {
-      files = searchFiles(searchQuery)
+    // Apply path filtering if not searching
+    if (!searchQuery) {
+      files = allFiles.filter(f => {
+        if (currentFolderId === null) {
+          return f.path === '/' || f.path === ''
+        } else {
+          // Find the folder path for currentFolderId
+          const currentFolder = allFolders.find(fld => fld.id === currentFolderId)
+          if (!currentFolder) return false
+          const expectedPath = currentFolder.path === '/' 
+            ? currentFolder.name 
+            : `${currentFolder.path}/${currentFolder.name}`
+          return f.path === expectedPath
+        }
+      })
     }
     
+    // Apply other filters
     files = filterFiles({
       category: selectedCategory,
       type: selectedType,
       favorite: showFavorites || undefined,
       year: selectedYear,
-    })
+    }, files)
     
-    // Apply search filter to filtered results
-    if (searchQuery && files === allFiles) {
-      files = searchFiles(searchQuery)
+    // Apply search to the filtered results
+    if (searchQuery) {
+      files = searchFiles(searchQuery, files)
     }
     
     return sortFiles(files, sortBy, sortOrder)
-  }, [allFiles, searchQuery, selectedCategory, selectedType, showFavorites, selectedYear, sortBy, sortOrder, searchFiles, filterFiles, sortFiles])
+  }, [allFiles, allFolders, searchQuery, currentFolderId, selectedCategory, selectedType, showFavorites, selectedYear, sortBy, sortOrder, searchFiles, filterFiles, sortFiles])
+
+  const currentFolders = useMemo(() => {
+    if (searchQuery) return [] // Don't show folders during search for now
+    
+    return allFolders.filter(fld => fld.parentId === (currentFolderId || connectionStatus.folderId))
+  }, [allFolders, currentFolderId, connectionStatus.folderId, searchQuery])
   
   const handleClearFilters = () => {
     setSelectedCategory(undefined)
@@ -87,6 +121,17 @@ function ArchiveContent() {
   const handleSortChange = (newSortBy: 'date' | 'name' | 'type', newOrder: 'asc' | 'desc') => {
     setSortBy(newSortBy)
     setSortOrder(newOrder)
+  }
+
+  const navigateToFolder = (folder: ArchiveFolder) => {
+    setCurrentFolderId(folder.id)
+    setBreadcrumbs(prev => [...prev, { id: folder.id, name: folder.name }])
+  }
+
+  const navigateToBreadcrumb = (index: number) => {
+    const target = breadcrumbs[index]
+    setCurrentFolderId(target.id)
+    setBreadcrumbs(breadcrumbs.slice(0, index + 1))
   }
   
   // Not connected state
@@ -144,6 +189,29 @@ function ArchiveContent() {
           onYearChange={setSelectedYear}
           onClearFilters={handleClearFilters}
         />
+
+        {/* Breadcrumbs */}
+        {!searchQuery && (
+          <div className="flex items-center gap-2 mt-8 mb-4 overflow-x-auto no-scrollbar py-2">
+            {breadcrumbs.map((crumb, index) => (
+              <div key={index} className="flex items-center shrink-0">
+                {index > 0 && <ChevronRight className="w-4 h-4 text-muted-foreground/40 mx-1" />}
+                <button
+                  onClick={() => navigateToBreadcrumb(index)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all",
+                    index === breadcrumbs.length - 1 
+                      ? "bg-primary/10 text-primary font-semibold" 
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  {index === 0 && <Home className="w-4 h-4" />}
+                  <span className="text-sm truncate max-w-[120px]">{crumb.name}</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         
         <div className="mt-6">
           {isLoading ? (
@@ -156,7 +224,7 @@ function ArchiveContent() {
                 viewMode === 'grid' ? <FileSkeleton key={i} /> : <FileSkeletonList key={i} />
               ))}
             </div>
-          ) : filteredFiles.length === 0 ? (
+          ) : filteredFiles.length === 0 && currentFolders.length === 0 ? (
             <EmptyState
               icon={allFiles.length === 0 ? FolderOpen : Search}
               title={allFiles.length === 0 ? "No documents yet" : "No documents found"}
@@ -172,9 +240,12 @@ function ArchiveContent() {
             />
           ) : (
             <>
-              <p className="text-sm text-muted-foreground mb-6">
-                Showing {filteredFiles.length} {filteredFiles.length === 1 ? 'document' : 'documents'}
-              </p>
+              {!searchQuery && (
+                <p className="text-sm text-muted-foreground mb-6">
+                  {currentFolders.length > 0 && `${currentFolders.length} folders, `}
+                  {filteredFiles.length} {filteredFiles.length === 1 ? 'document' : 'documents'}
+                </p>
+              )}
               
               {viewMode === 'grid' ? (
                 <motion.div
@@ -183,11 +254,25 @@ function ArchiveContent() {
                   animate="animate"
                   className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
                 >
+                  {/* Render Folders First */}
+                  <AnimatePresence>
+                    {currentFolders.map((folder, index) => (
+                      <motion.div key={folder.id} variants={staggerItem}>
+                        <FolderCard
+                          folder={folder}
+                          delay={index * 0.03}
+                          onClick={() => navigateToFolder(folder)}
+                        />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+
+                  {/* Render Files */}
                   {filteredFiles.map((file, index) => (
                     <motion.div key={file.id} variants={staggerItem}>
                       <FileCard
                         file={file}
-                        delay={index * 0.03}
+                        delay={(currentFolders.length + index) * 0.03}
                         onClick={() => setSelectedFile(file)}
                         onFavoriteClick={() => toggleFavorite(file.id)}
                       />
@@ -201,12 +286,24 @@ function ArchiveContent() {
                   animate="animate"
                   className="space-y-3"
                 >
+                  {/* Folders List */}
+                  {currentFolders.map((folder, index) => (
+                    <motion.div key={folder.id} variants={staggerItem}>
+                      <FolderCardList
+                        folder={folder}
+                        delay={index * 0.02}
+                        onClick={() => navigateToFolder(folder)}
+                      />
+                    </motion.div>
+                  ))}
+
+                  {/* Files List */}
                   {filteredFiles.map((file, index) => (
                     <motion.div key={file.id} variants={staggerItem}>
                       <FileCard
                         file={file}
                         variant="compact"
-                        delay={index * 0.02}
+                        delay={(currentFolders.length + index) * 0.02}
                         onClick={() => setSelectedFile(file)}
                         onFavoriteClick={() => toggleFavorite(file.id)}
                       />

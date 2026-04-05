@@ -39,12 +39,15 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const driveFiles = await listAllFilesRecursively(accessToken, folderId)
+    const { files: driveFiles, folders: archiveFolders } = await listAllFilesRecursively(accessToken, folderId)
     const archiveFiles = driveFiles.map(file => 
       convertDriveFileToArchiveFile(file, file.parents?.[0] || '')
     )
 
-    return NextResponse.json({ files: archiveFiles })
+    return NextResponse.json({ 
+      files: archiveFiles,
+      folders: archiveFolders
+    })
   } catch (error) {
     console.error('Error listing files:', error)
     return NextResponse.json(

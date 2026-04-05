@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import useSWR from 'swr'
-import { ArchiveFile, DriveConnectionStatus, ArchiveStats, Category, CategoryInfo, TimelineGroup } from '@/types/archive'
+import { ArchiveFile, ArchiveFolder, DriveConnectionStatus, ArchiveStats, Category, CategoryInfo, TimelineGroup } from '@/types/archive'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
@@ -82,6 +82,8 @@ export function useArchive() {
     favorite: favorites.has(file.id)
   })) || []
 
+  const folders: ArchiveFolder[] = filesData?.folders || []
+
   // Toggle favorite
   const toggleFavorite = useCallback((fileId: string) => {
     setFavorites(prev => {
@@ -151,9 +153,9 @@ export function useArchive() {
   }, [files])
 
   // Search files
-  const searchFiles = useCallback((query: string): ArchiveFile[] => {
+  const searchFiles = useCallback((query: string, filesToSearch: ArchiveFile[] = files): ArchiveFile[] => {
     const lowerQuery = query.toLowerCase()
-    return files.filter(f => 
+    return filesToSearch.filter(f => 
       f.title.toLowerCase().includes(lowerQuery) ||
       f.fileName.toLowerCase().includes(lowerQuery) ||
       f.category.toLowerCase().includes(lowerQuery) ||
@@ -168,9 +170,10 @@ export function useArchive() {
       type?: 'pdf' | 'image'
       favorite?: boolean
       year?: number
-    }
+    },
+    filesToFilter: ArchiveFile[] = files
   ): ArchiveFile[] => {
-    return files.filter(f => {
+    return filesToFilter.filter(f => {
       if (filters.category && f.category !== filters.category) return false
       if (filters.type && f.type !== filters.type) return false
       if (filters.favorite && !favorites.has(f.id)) return false
@@ -240,6 +243,7 @@ export function useArchive() {
 
   return {
     files,
+    folders,
     isLoading,
     error: filesError,
     connectionStatus,
